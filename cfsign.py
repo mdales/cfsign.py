@@ -18,6 +18,7 @@
 import base64
 from optparse import OptionParser
 import os
+import re
 import subprocess
 import sys
 import time
@@ -31,6 +32,12 @@ def _urlsafe_b64encode(value):
     # a different policy to base64.urlsafe_b64encode
     encoded_value = base64.b64encode(value)
     return encoded_value.replace('+', '-').replace('=', '_').replace('/', '~')
+
+def _urlsafe_b64decode(value):
+    # I've no idea who defines what's right and wrong for this, but AWS uses
+    # a different policy to base64.urlsafe_b64decode    
+    munged_value = value.replace('-', '+').replace('_', '=').replace('~', '/')
+    return base64.b64decode(munged_value)
 
 def _rsa_sha1_sign(policy, private_key_file):
     p = subprocess.Popen(['openssl', 'sha1', '-sign', private_key_file], 
@@ -59,6 +66,7 @@ def encode(url, policy, expiry_epoch, key_pair_id, private_key_filename):
     
     return _create_url(url, encoded_policy, encoded_signature,
         options.key_pair_id, options.expires_epoch)
+
 
 if __name__ == "__main__":
     
@@ -103,4 +111,49 @@ if __name__ == "__main__":
             print "Encoded URL:\n%s" % generated_url
         
     else:
-        raise NotImplemented
+        base_url, params = urllib.splitquery(url)
+        unparsed_params = params.split('&')
+        params = {}
+        for param in unparsed_params:
+            key, value = urllib.splitvalue(param)
+            params[key] = value
+        
+        try:
+            encoded_signature = params['Signature']
+        except KeyError:
+            print "Missing Signature URL parameters"
+            sys.exit()
+        
+        try:
+            encoded_policy = params['Policy']
+        except KeyError:
+            # no policy, so make canned one
+            try:
+                expires = params['Expires']
+            except KeyError:
+                print "Either the Policy or Expires URL parameter needs to be specified"
+                sys.exit()
+            
+            # we can't just use base_url here, as the original url may have
+            # had its own params
+            url_without_cf_params = url
+            url_without_cf_params = re.sub('Signature=[^&]*&?', '', url_without_cf_params)
+            url_without_cf_params = re.sub('Policy=[^&]*&?', '', url_without_cf_params)
+            url_without_cf_params = re.sub('Expires=[^&]*&?', '', url_without_cf_params)
+            url_without_cf_params = re.sub('Key-Pair-Id=[^&]*&?', '', url_without_cf_params)
+                        
+            policy = CANNED_POLICY % (url_without_cf_params, expires)
+            encoded_policy = _urlsafe_b64encode(policy)
+            
+        try:
+            key = params['Key-Pair-Id']
+        except KeyError:
+            print "Missing Key-Pair-Id parameter"
+            sys.exit()
+        
+        policy = _urlsafe_b64decode(encoded_policy)
+        
+        print "Base URL: %s" % base_url
+        print "Policy: %s" % policy
+        print "Key: %s" % key
+            
