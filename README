@@ -1,0 +1,11 @@
+This is a port of the cfsign.pl Perl script that Amazon provide for signing content for Cloudfront. As far as possible I've kept to the same variable names, idioms etc. The options are mostly the same, but there's a slight difference due to how the Python option module works.
+
+You can invoke it at the command like like so:
+
+    cfsign.py --url=http://mydist.cloudfront.net/foo.jpg --private-key=pk-1234.pem --key-pair-id=1234
+
+One change though is that in addition to calling it from the command line the file works as a Python module. There is just one function exposed, which is called "encode" that you can pass the parameters to and get back a signed URL.
+
+This seems to work for the cases I've been testing on, but it's not much tested yet. If you have any issues, patches more than welcome. 
+
+Michael Dales (mwd@camvine.com)
