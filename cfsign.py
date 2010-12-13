@@ -60,12 +60,14 @@ def _create_url(path, policy, signature, key_pair_id, expires):
 
 def encode(url, policy, expiry_epoch, key_pair_id, private_key_filename):
     
+    if not policy:
+        policy = CANNED_POLICY % (url, expiry_epoch)
+    
     encoded_policy = _urlsafe_b64encode(policy)
-    signature = _rsa_sha1_sign(policy, options.private_key_filename)
+    signature = _rsa_sha1_sign(policy, private_key_filename)
     encoded_signature = _urlsafe_b64encode(signature)
     
-    return _create_url(url, encoded_policy, encoded_signature,
-        options.key_pair_id, options.expires_epoch)
+    return _create_url(url, encoded_policy, encoded_signature, key_pair_id, expiry_epoch)
 
 
 if __name__ == "__main__":
